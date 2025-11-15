@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "highlight.js/styles/github-dark.css";
 
 import { ChatInput } from "@/components/ChatInput";
@@ -10,6 +10,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { useChatStreaming } from "@/hooks/useChatStreaming";
 // Types
 import type { ImageData, Message, PdfData } from "@/types/chat";
+import { useAuth } from "@clerk/clerk-react";
 
 export const Route = createFileRoute("/")({
 	component: ChatDemo,
@@ -22,6 +23,17 @@ function ChatDemo() {
 	const [uploadedImage, setUploadedImage] = useState<ImageData | null>(null);
 	const [uploadedPdf, setUploadedPdf] = useState<PdfData | null>(null);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
+	const { getToken } = useAuth();
+	const [token, setToken] = useState<string | null>(null);
+
+	// Fetch token on mount
+	useEffect(() => {
+		const fetchToken = async () => {
+			const t = await getToken();
+			setToken(t);
+		};
+		fetchToken();
+	}, []);
 
 	// Streaming chat - unified streaming handler
 	const { currentlyStreaming, currentlySending } = useChatStreaming({
@@ -46,6 +58,7 @@ function ChatDemo() {
 				}
 			});
 		},
+		token
 	});
 
 	// Message sending handler

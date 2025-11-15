@@ -5,7 +5,6 @@ Pydantic models for request/response validation
 from pydantic import BaseModel
 from typing import Optional, List
 
-
 class ImageData(BaseModel):
   """Image data with base64 encoding"""
   data: str

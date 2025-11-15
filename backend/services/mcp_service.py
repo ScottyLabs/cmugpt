@@ -212,6 +212,14 @@ class MCPManager:
       "tool_args": tool_args
     }
 
+  async def get_tool_schema(self, tool_name: str) -> Optional[Dict[str, Any]]:
+    """Get the schema for a specific tool"""
+    for client in self.clients.values():
+      for tool in client.available_tools:
+        if tool['function']['name'] == tool_name:
+          return tool
+    return None
+
   async def cleanup_all(self):
     """Clean up all MCP client connections"""
     for client in self.clients.values():

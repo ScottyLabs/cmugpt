@@ -7,7 +7,7 @@ import {
 	FileAttachment04,
 } from "@untitledui/icons";
 import { useRef } from "react";
-import type { ImageData, Model, PdfData } from "@/types/chat";
+import type { ImageData, PdfData } from "@/types/chat";
 import {
 	handleImageUpload,
 	handlePdfUpload,
