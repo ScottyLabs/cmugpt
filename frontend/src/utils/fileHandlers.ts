@@ -2,7 +2,7 @@
  * File upload handlers
  */
 
-import type { AudioData, ImageData, PdfData } from "@/types/chat";
+import type { ImageData, PdfData } from "@/types/chat";
 
 export const handleImageUpload = (
 	file: File,

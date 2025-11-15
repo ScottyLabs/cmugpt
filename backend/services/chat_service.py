@@ -117,6 +117,7 @@ class ChatService:
     accumulated_tool_calls: List[Dict[str, Any]] = None,
     user_token: Optional[str] = None,
   ) -> AsyncGenerator[str, None]:
+    print("stream_response called, SEARCHME, user_token:", user_token)
     """Stream chat response from OpenRouter API"""
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
@@ -203,6 +204,7 @@ class ChatService:
           payload,
           use_mcp=use_mcp,
           accumulated_tool_calls=accumulated_tool_calls,
+          user_token=user_token,
         ):
           yield event
 
@@ -251,7 +253,12 @@ class ChatService:
     for tool_call in tool_calls:
       tool_name = tool_call["function"]["name"]
       tool_args = json.loads(tool_call["function"]["arguments"] or "{}")
-      tool_args["user_token"] = user_token
+      
+      # Only add user_token if the tool accepts it as a parameter
+      tool_schema = await mcp_manager.get_tool_schema(tool_name)
+      if tool_schema and self._tool_accepts_user_token(tool_schema):
+        tool_args["user_token"] = user_token
+      
       tool_result = await mcp_manager.call_tool(tool_name, tool_args)
 
       messages.append(
@@ -268,6 +275,16 @@ class ChatService:
       )
 
     return payload
+  
+  def _tool_accepts_user_token(self, tool_schema: Dict[str, Any]) -> bool:
+    """Check if a tool accepts user_token as a parameter"""
+    if not tool_schema:
+      return False
+    
+    parameters = tool_schema.get("function", {}).get("parameters", {})
+    properties = parameters.get("properties", {})
+    
+    return "user_token" in properties
 
       
 

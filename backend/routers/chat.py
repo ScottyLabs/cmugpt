@@ -2,7 +2,8 @@
 Chat-related API routes
 """
 
-from fastapi import APIRouter
+from typing import Annotated
+from fastapi import APIRouter, Header, Header
 from fastapi.responses import StreamingResponse
 import requests
 
@@ -13,7 +14,7 @@ import json
 router = APIRouter()
 
 @router.post("/chat_streaming")
-async def chat_streaming(request: ChatRequest):
+async def chat_streaming(request: ChatRequest, authorization: Annotated[str, Header()] = None):
   """
   Chat endpoint with streaming support and optional MCP tools
   
@@ -23,6 +24,7 @@ async def chat_streaming(request: ChatRequest):
   Returns:
     Streaming response
   """
+  print(authorization)
   # Get model data
   model_id = "anthropic/claude-haiku-4.5"
 
@@ -44,13 +46,13 @@ async def chat_streaming(request: ChatRequest):
     has_pdf=has_pdf
   )
   print(f"Payload for model {model_id}: {json.dumps(payload)}")
-
+  print("SEARCHME", authorization.split("Bearer ")[-1] if authorization else None)
   async def event_generator():
     async for event in chat_service.stream_response(
             payload,
             use_mcp=True,
             accumulated_tool_calls=request.approved_tool_calls if hasattr(request, 'approved_tool_calls') else [],
-            user_token=request.user_token
+            user_token=authorization.split("Bearer ")[-1] if authorization else None
         ):
         yield event
   

@@ -18,16 +18,18 @@ import {
 
 interface UseChatStreamingProps {
 	chatMessages: Message[];
-	selectedModel: string;
 	lastMessage: string;
 	onMessageUpdate: (content: string, image?: any) => void;
+	token: string | null;
 }
 
 export const useChatStreaming = ({
 	chatMessages,
 	lastMessage,
 	onMessageUpdate,
-}: UseChatStreamingProps) => {
+	token,
+}: UseChatStreamingProps) => {;
+
 	const streamingQuery = queryOptions({
 		queryKey: ["chat", lastMessage],
 		queryFn: streamedQuery({
@@ -50,7 +52,9 @@ export const useChatStreaming = ({
 					`${import.meta.env.VITE_API_URL}/chat_streaming`,
 					{
 						method: "POST",
-						headers: { "Content-Type": "application/json" },
+						headers: { "Content-Type": "application/json",
+							"Authorization": `Bearer ${token}`
+						 },
 						body: JSON.stringify(requestBody),
 					},
 				);

@@ -34,7 +34,7 @@ const mockChats: Record<string, Message[]> = {
     };
 
 export const usePreviousChats = () => {
-    const [chats, setChats] = useState<Record<string, Message[]>>(mockChats);
+    const [chats] = useState<Record<string, Message[]>>(mockChats);
 
     return { chats };
 }
