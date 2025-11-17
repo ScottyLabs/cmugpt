@@ -31,6 +31,24 @@ const mockChats: Record<string, Message[]> = {
                 timestamp: new Date(),
             },
         ],
+        "Chat with a Map embedded": [
+            {
+                id: "1",
+                role: "user",
+                content: "Show me a map of CMU for this demo",
+                timestamp: new Date(),
+            },
+            {
+                id: "2",
+                role: "assistant",
+                content: "Here's a map of Carnegie Mellon University:",
+                timestamp: new Date(),
+                map: {
+                    url: "https://maps.scottylabs.org"
+                }
+            },
+
+        ]
     };
 
 export const usePreviousChats = () => {

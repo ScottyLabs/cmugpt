@@ -20,6 +20,9 @@ interface MessageContentProps {
 		filename: string;
 		url: string;
 	};
+	map?: {
+		url: string;
+	}
 }
 
 function MessageContent({
@@ -28,6 +31,7 @@ function MessageContent({
 	image,
 	audio,
 	pdf,
+	map,
 }: MessageContentProps) {
 	if (role === "user") {
 		return (
@@ -97,7 +101,7 @@ function MessageContent({
 
 	return (
 		<div className="prose prose-invert max-w-none">
-			{image && (
+			{image ? (
 				<div className="mb-3">
 					<img
 						src={image.url}
@@ -118,7 +122,11 @@ function MessageContent({
 						}}
 					/>
 				</div>
-			)}
+			) : map ? (
+				<div className="mb-3">
+					<iframe src={map.url} className="w-full h-64 rounded-lg border border-black/20" />
+				</div>
+			) : null}
 			<ReactMarkdown
 				remarkPlugins={[remarkGfm]}
 				rehypePlugins={[rehypeHighlight]}
