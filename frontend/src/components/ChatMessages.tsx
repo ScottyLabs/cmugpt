@@ -46,6 +46,7 @@ export const ChatMessages = ({ messages }: ChatMessagesProps) => {
 							role={message.role}
 							image={message.image}
 							pdf={message.pdf}
+							map={message.map}
 						/>
 						<div className="text-xs opacity-70 mt-2">
 							{message.timestamp.toLocaleTimeString()}

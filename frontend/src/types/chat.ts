@@ -14,6 +14,10 @@ export interface PdfData {
 	url: string;
 }
 
+export interface MapData {
+	url: string;
+}
+
 export interface Message {
 	id: string;
 	role: "user" | "assistant";
@@ -21,6 +25,7 @@ export interface Message {
 	image?: ImageData;
 	audio?: AudioData;
 	pdf?: PdfData;
+	map?: MapData;
 	timestamp: Date;
 }
 
