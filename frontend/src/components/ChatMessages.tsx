@@ -35,7 +35,7 @@ export const ChatMessages = ({ messages }: ChatMessagesProps) => {
 					className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
 				>
 					<div
-						className={`max-w-[85%] sm:max-w-[75%] md:max-w-[70%] p-3 sm:p-4 rounded-lg ${
+						className={`max-w-[85vw] p-3 sm:p-4 rounded-lg ${
 							message.role === "user"
 								? "bg-[#F5F5F5] text-black"
 								: "bg-[#F5F5F5]/10 border border-black/20 text-black"

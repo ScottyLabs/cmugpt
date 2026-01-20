@@ -101,7 +101,7 @@ function MessageContent({
 
 	return (
 		<div className="prose prose-invert max-w-none">
-			{image ? (
+			{image && (
 				<div className="mb-3">
 					<img
 						src={image.url}
@@ -122,11 +122,7 @@ function MessageContent({
 						}}
 					/>
 				</div>
-			) : map ? (
-				<div className="mb-3">
-					<iframe src={map.url} className="w-full h-64 rounded-lg border border-black/20" />
-				</div>
-			) : null}
+			)}
 			<ReactMarkdown
 				remarkPlugins={[remarkGfm]}
 				rehypePlugins={[rehypeHighlight]}
@@ -212,6 +208,11 @@ function MessageContent({
 			>
 				{content}
 			</ReactMarkdown>
+			{map && (
+				<div className="mt-3 w-[75vw] md:max-w-[75vw]">
+					<iframe src={map.url} className="w-full h-80 rounded-lg border border-black/20" />
+				</div>
+			)}
 		</div>
 	);
 }
