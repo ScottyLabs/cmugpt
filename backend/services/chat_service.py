@@ -1,26 +1,39 @@
 """
-Chat service for handling AI model interactions
+Chat service for handling AI model interactions using OpenAI SDK with OpenRouter
 """
 
 import os
-from dotenv import load_dotenv
-import requests
 import json
 import asyncio
-from typing import AsyncGenerator, Generator, Dict, Any, List, Optional
+from typing import AsyncGenerator, Dict, Any, List, Optional
+
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+
 from models.schemas import Message
 from services.mcp_service import mcp_manager
 
 load_dotenv()
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-print("OPENROUTER_API_KEY:", OPENROUTER_API_KEY)
+
+OPENROUTER_API_KEY = "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"
+
+# OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+# Initialize OpenAI client configured for OpenRouter
+openai_client = AsyncOpenAI(
+  api_key=OPENROUTER_API_KEY,
+  base_url=OPENROUTER_BASE_URL,
+)
+
 
 class ChatService:
-  """Service for managing chat interactions with AI models"""
+  """Service for managing chat interactions with AI models via OpenRouter"""
 
   def __init__(self, model_id: str, model_data: Dict[str, Any]):
     self.model_id = model_id
     self.model_data = model_data
+    self.client = openai_client
 
   def prepare_messages(self, chat_history: List[Message]) -> List[Dict[str, Any]]:
     """Convert individual messages to OpenRouter message format, handling different modalities"""
@@ -70,143 +83,116 @@ class ChatService:
 
     return messages
 
-  async def create_payload(
+  async def get_mcp_tools(self) -> List[Dict[str, Any]]:
+    """Get all available MCP tools in OpenAI format"""
+    try:
+      clients = await mcp_manager.get_or_create_all_clients()
+      tools_results = await asyncio.gather(
+        *[client.get_available_tools() for client in clients],
+        return_exceptions=True,
+      )
+      # Flatten and filter out exceptions
+      tools = [
+        tool
+        for sublist in tools_results
+        for tool in sublist
+        if not isinstance(sublist, Exception)
+      ]
+      return tools
+    except Exception as e:
+      print(f"Failed to load MCP tools: {e}")
+      return []
+
+  async def stream_response(
     self,
     messages: List[Dict[str, Any]],
     use_mcp: bool = False,
     has_pdf: bool = False,
-  ) -> Dict[str, Any]:
-    """Create overall request payload for OpenRouter API"""
-    output_modalities = self.model_data["architecture"]["output_modalities"]
-
-    payload = {
-      "model": self.model_id,
-      "messages": messages,
-      "modalities": output_modalities,
-    }
-
-    # Add MCP tools if enabled
-    if use_mcp:
-      try:
-        clients = await mcp_manager.get_or_create_all_clients()
-        tools = await asyncio.gather(
-          *[client.get_available_tools() for client in clients],
-          return_exceptions=True,
-        )
-        if tools:
-          # flatten and nullcheck tools list
-          payload["tools"] = [
-            tool
-            for sublist in tools
-            for tool in sublist
-            if not isinstance(tool, Exception)
-          ]
-      except Exception as e:
-        print(f"Failed to load MCP tools: {e}")
-
-    # Add file parser plugin if PDFs are present
-    if has_pdf:
-      payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "pdf-text"}}]
-
-    return payload
-
-  async def stream_response(
-    self,
-    payload: Dict[str, Any],
-    use_mcp: bool = False,
     accumulated_tool_calls: List[Dict[str, Any]] = None,
     user_token: Optional[str] = None,
   ) -> AsyncGenerator[str, None]:
-    print("stream_response called, SEARCHME, user_token:", user_token)
-    """Stream chat response from OpenRouter API"""
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-      "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-      "Content-Type": "application/json",
+    """Stream chat response from OpenRouter API using OpenAI SDK"""
+    
+    # If there are pre-accumulated tool calls, execute them first
+    if accumulated_tool_calls:
+      messages = await self._execute_tools(
+        accumulated_tool_calls, messages, user_token
+      )
+
+    # Build request parameters
+    request_params: Dict[str, Any] = {
+      "model": self.model_id,
+      "messages": messages,
+      "stream": True,
     }
 
-    payload["stream"] = True
-    buffer = ""
+    # Add output modalities if available
+    if self.model_data.get("architecture", {}).get("output_modalities"):
+      request_params["modalities"] = self.model_data["architecture"]["output_modalities"]
 
-    if accumulated_tool_calls:
-      # If there are pre-accumulated tool calls, execute them and continue
-      payload = await self._execute_tools(
-        accumulated_tool_calls, payload, user_token
-      )
-      print("Updated payload with accumulated tool calls:", payload)
+    # Add MCP tools if enabled
+    if use_mcp:
+      tools = await self.get_mcp_tools()
+      if tools:
+        request_params["tools"] = tools
 
-    accumulated_tool_calls = []
+    # Add extra_body for OpenRouter-specific features (like PDF plugins)
+    extra_body = {}
+    if has_pdf:
+      extra_body["plugins"] = [{"id": "file-parser", "pdf": {"engine": "pdf-text"}}]
+    
+    if extra_body:
+      request_params["extra_body"] = extra_body
 
-    with requests.post(url, headers=headers, json=payload, stream=True) as r:
-      accumulated_message = ""
-      tool_calls_complete = False
+    # Track accumulated tool calls during streaming
+    streaming_tool_calls: List[Dict[str, Any]] = []
 
-      for chunk in r.iter_content(chunk_size=1024, decode_unicode=False):
-        chunk = chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
-        buffer += chunk
+    try:
+      stream = await self.client.chat.completions.create(**request_params)
 
-        while True:
-          try:
-            line_end = buffer.find("\n")
-            if line_end == -1:
-              break
+      async for chunk in stream:
+        # Convert chunk to dict for JSON serialization
+        chunk_dict = chunk.model_dump()
 
-            line = buffer[:line_end].strip()
-            buffer = buffer[line_end + 1 :]
+        # Handle tool calls in streaming response
+        if use_mcp and chunk_dict.get("choices"):
+          choice = chunk_dict["choices"][0]
+          delta = choice.get("delta", {})
 
-            if line.startswith("data: "):
-              data = line[6:]
-              try:
-                parsed_data = json.loads(data)
+          if delta.get("tool_calls"):
+            self._accumulate_tool_calls(delta["tool_calls"], streaming_tool_calls)
 
-                # Handle tool calls in streaming response
-                if (
-                  use_mcp
-                  and "choices" in parsed_data
-                  and len(parsed_data["choices"]) > 0
-                ):
-                  choice = parsed_data["choices"][0]
+        # Only yield if we're not accumulating tool calls, or no tool calls present
+        if not use_mcp or not streaming_tool_calls:
+          yield json.dumps(chunk_dict)
 
-                  if (
-                    "delta" in choice
-                    and "content" in choice["delta"]
-                  ):
-                    accumulated_message += (
-                      choice["delta"]["content"] or ""
-                    )
-
-                  if (
-                    "delta" in choice
-                    and "tool_calls" in choice["delta"]
-                  ):
-                    self._accumulate_tool_calls(
-                      choice["delta"]["tool_calls"],
-                      accumulated_tool_calls,
-                    )
-
-                if (
-                  not use_mcp
-                  or not accumulated_tool_calls
-                ):
-                  print("Streaming data:", data)
-                  print("acc mcp:", accumulated_tool_calls)
-                  yield data
-
-              except json.JSONDecodeError:
-                pass
-          except Exception:
-            break
-
-      # Handle tool calls after streaming
-      print("Final accumulated tool calls:", accumulated_tool_calls)
-      if use_mcp and accumulated_tool_calls:
+      # After streaming completes, handle any accumulated tool calls
+      if use_mcp and streaming_tool_calls:
+        # Add assistant message with tool calls
+        messages.append({
+          "role": "assistant",
+          "content": "",
+          "tool_calls": streaming_tool_calls
+        })
+        
+        # Recursively process tool calls
         async for event in self.stream_response(
-          payload,
+          messages=messages,
           use_mcp=use_mcp,
-          accumulated_tool_calls=accumulated_tool_calls,
+          has_pdf=has_pdf,
+          accumulated_tool_calls=streaming_tool_calls,
           user_token=user_token,
         ):
           yield event
+
+    except Exception as e:
+      error_response = {
+        "error": {
+          "message": str(e),
+          "type": "api_error"
+        }
+      }
+      yield json.dumps(error_response)
 
   def _accumulate_tool_calls(self, tool_calls: List[Dict], accumulated: List[Dict]):
     """Accumulate streaming tool call data"""
@@ -222,33 +208,22 @@ class ChatService:
             }
           )
 
-        if "id" in tool_call:
+        if tool_call.get("id"):
           accumulated[index]["id"] = tool_call["id"]
-        if "function" in tool_call:
-          if "name" in tool_call["function"]:
-            accumulated[index]["function"]["name"] = tool_call["function"][
-              "name"
-            ]
-          if "arguments" in tool_call["function"]:
-            accumulated[index]["function"]["arguments"] += tool_call[
-              "function"
-            ]["arguments"]
+        if tool_call.get("function"):
+          if tool_call["function"].get("name"):
+            accumulated[index]["function"]["name"] = tool_call["function"]["name"]
+          if tool_call["function"].get("arguments"):
+            accumulated[index]["function"]["arguments"] += tool_call["function"]["arguments"]
 
   async def _execute_tools(
     self,
     tool_calls: List[Dict],
-    payload: Dict[str, Any],
+    messages: List[Dict[str, Any]],
     user_token: Optional[str] = None,
-  ) -> Dict[str, Any]:
-    print("user_token:", user_token)
-    """Execute approved tool calls and stream final response"""
-    print("tool_calls:", tool_calls)
+  ) -> List[Dict[str, Any]]:
+    """Execute tool calls and append results to messages"""
     await mcp_manager.get_or_create_all_clients()
-
-    messages = payload["messages"]
-    messages.append(
-      {"role": "assistant", "content": "", "tool_calls": tool_calls}
-    )
 
     for tool_call in tool_calls:
       tool_name = tool_call["function"]["name"]
@@ -274,8 +249,8 @@ class ChatService:
         }
       )
 
-    return payload
-  
+    return messages
+
   def _tool_accepts_user_token(self, tool_schema: Dict[str, Any]) -> bool:
     """Check if a tool accepts user_token as a parameter"""
     if not tool_schema:
@@ -285,31 +260,3 @@ class ChatService:
     properties = parameters.get("properties", {})
     
     return "user_token" in properties
-
-      
-
-  def execute_approved_tools_streaming(
-    self,
-    tool_calls: List[Dict],
-    chat_history: List[Message],
-  ) -> Generator[str, None, None]:
-    """
-    Execute approved tool calls and stream the final response.
-    This is a public method for use by the tool approval endpoint.
-    """
-    messages = self.prepare_messages(chat_history)
-
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-      "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-      "Content-Type": "application/json",
-    }
-
-    payload = {"model": self.model_id, "messages": messages}
-
-    yield from self._execute_tools_and_continue(
-      tool_calls,
-      payload,
-      headers,
-      url,
-    )
