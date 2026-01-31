@@ -15,9 +15,7 @@ from services.mcp_service import mcp_manager
 
 load_dotenv()
 
-OPENROUTER_API_KEY = "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"
-
-# OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Initialize OpenAI client configured for OpenRouter
