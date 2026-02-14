@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "highlight.js/styles/github-dark.css";
 
 import { ChatInput } from "@/components/ChatInput";
@@ -35,31 +35,47 @@ function ChatDemo() {
 		fetchToken();
 	}, []);
 
+	// Stable ID for the current assistant streaming message
+	const assistantIdRef = useRef<string | null>(null);
+
+	const onMessageUpdate = useCallback((content: string, image?: any) => {
+		if (!assistantIdRef.current) {
+			assistantIdRef.current = Date.now().toString();
+		}
+
+		const assistantMessage: Message = {
+			id: assistantIdRef.current,
+			role: "assistant",
+			content,
+			...(image && { image }),
+			timestamp: new Date(),
+		};
+
+		setChatMessages((prev) => {
+			if (prev.length === 0 || prev[prev.length - 1].role !== "assistant") {
+				return [...prev, assistantMessage];
+			} else {
+				const newMessages = [...prev];
+				newMessages[newMessages.length - 1] = assistantMessage;
+				return newMessages;
+			}
+		});
+	}, []);
+
 	// Streaming chat - unified streaming handler
 	const { currentlyStreaming, currentlySending } = useChatStreaming({
 		chatMessages,
 		lastMessage,
-		onMessageUpdate: (content, image) => {
-			const assistantMessage: Message = {
-				id: Date.now().toString(),
-				role: "assistant",
-				content,
-				...(image && { image }),
-				timestamp: new Date(),
-			};
-
-			setChatMessages((prev) => {
-				if (prev.length === 0 || prev[prev.length - 1].role !== "assistant") {
-					return [...prev, assistantMessage];
-				} else {
-					const newMessages = [...prev];
-					newMessages[newMessages.length - 1] = assistantMessage;
-					return newMessages;
-				}
-			});
-		},
+		onMessageUpdate,
 		token
 	});
+
+	// Reset assistant ID ref when streaming finishes
+	useEffect(() => {
+		if (!currentlyStreaming) {
+			assistantIdRef.current = null;
+		}
+	}, [currentlyStreaming]);
 
 	// Message sending handler
 	const handleSendMessage = () => {

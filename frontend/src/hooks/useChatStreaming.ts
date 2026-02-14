@@ -31,7 +31,7 @@ export const useChatStreaming = ({
 }: UseChatStreamingProps) => {;
 
 	const streamingQuery = queryOptions({
-		queryKey: ["chat", lastMessage],
+		queryKey: ["chat", lastMessage, chatMessages.length],
 		queryFn: streamedQuery({
 			streamFn: async () => {
 				const chat_history = chatMessages.map(
@@ -68,7 +68,15 @@ export const useChatStreaming = ({
 					while (true) {
 						const { done, value } = await reader.read();
 						if (done) return;
-						yield new TextDecoder().decode(value);
+						const decoded = new TextDecoder().decode(value);
+						// Strip SSE "data: " prefix from each line
+						const stripped = decoded
+							.split("\n")
+							.filter((line) => line.startsWith("data: "))
+							.map((line) => line.slice(6))
+							.filter((line) => line !== "[DONE]")
+							.join("");
+						if (stripped) yield stripped;
 					}
 				})();
 			},
@@ -106,7 +114,7 @@ export const useChatStreaming = ({
 				streamingMessage,
 			);
 		}
-	}, [streamingMessage]);
+	}, [streamingMessage, onMessageUpdate]);
 
 	return {
 		currentlyStreaming: isFetching,
