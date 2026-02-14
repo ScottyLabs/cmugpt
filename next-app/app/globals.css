@@ -1,0 +1,75 @@
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+:root {
+  --bg-0: #f5f8f7;
+  --bg-1: #dcebe5;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-strong: rgba(255, 255, 255, 0.92);
+  --text: #11231f;
+  --text-soft: #3f5751;
+  --accent: #0d8f6f;
+  --accent-2: #e08a2a;
+  --danger: #ba3f39;
+  --ring: rgba(13, 143, 111, 0.4);
+  --border: rgba(17, 35, 31, 0.14);
+  --shadow: 0 14px 40px rgba(18, 40, 35, 0.16);
+  --radius: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 18% 8%, rgba(13, 143, 111, 0.16), transparent 38%),
+    radial-gradient(circle at 86% 18%, rgba(224, 138, 42, 0.2), transparent 34%),
+    linear-gradient(165deg, var(--bg-0), var(--bg-1));
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  height: 100vh;
+  padding: 20px;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  gap: 14px;
+  height: 100%;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: 220px minmax(420px, 1fr) 260px;
+  }
+}
